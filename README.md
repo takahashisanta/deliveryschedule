@@ -34,17 +34,16 @@ This creates **`PSD_Driver_Schedule.xlsx`** with three sheets:
 
 ---
 
-## Step 2 – Move Sheets into Your PSD Workbook
+## Step 2 – Add the DRIVER_RULES sheet to your PSD Workbook
 
-The MASTER DATA source must be in the **same workbook** as the driver schedule sheets.
+The DRIVER_RULES sheet is the only new sheet you need to add. Everything else
+(MASTER DATA, Driver Schedule Sheet) already lives in your PSD Order Process Sheet.xlsm.
 
-**Option A** — Add sheets to your existing PSD Order Process Sheet:
-1. Open both workbooks
-2. Right-click each new sheet tab → **Move or Copy** → select your PSD workbook
-
-**Option B** — Work from the new file:
-1. Copy your MASTER DATA sheet into `PSD_Driver_Schedule.xlsx`
-2. Rename it exactly: **`MASTER DATA`**
+1. Open both files in Excel simultaneously
+2. In `PSD_Driver_Schedule.xlsx`, right-click the **DRIVER_RULES** tab → **Move or Copy…**
+   - "To book:" → `PSD Order Process Sheet.xlsm`
+   - Check **Create a copy** → OK
+3. Optionally also copy **DRIVER_ENGINE** (hidden sheet used for audit/debug — not required)
 
 ---
 
@@ -61,7 +60,7 @@ The MASTER DATA source must be in the **same workbook** as the driver schedule s
 
 ## Step 4 – Add the "Generate Schedule" Button
 
-1. Go to the **DRIVER_SCHEDULE** sheet
+1. Go to the **Driver Schedule Sheet**
 2. **Developer tab → Insert → Button (Form Control)**
    - If Developer tab is hidden: File → Options → Customize Ribbon → check Developer
 3. Draw a button near cell F2 (where the placeholder text says)
@@ -72,15 +71,36 @@ Optional: Add a second button assigned to **`ClearSchedule`**.
 
 ---
 
-## Step 5 – Verify MASTER DATA Column Positions
+## Step 5 – Add a Pallets Column to MASTER DATA (if not already there)
+
+The macro needs a numeric **Pallets** column in MASTER DATA to decide Truck vs Van.
+
+**Suggested setup:**
+1. In MASTER DATA, insert a new column at **col J** and label it `Pallets`
+2. Enter the pallet count per order row (can be decimals, e.g. `0.5` for half pallet)
+3. The VBA constant `MD_COL_PALLETS = 10` (col J) already points to this column
+
+If you place it in a different column, update the constant in the VBA module:
+```vba
+Private Const MD_COL_PALLETS  As Long = 10  ' J – change to match your column
+```
+
+---
+
+## Step 6 – Verify All MASTER DATA Column Positions
 
 Open `DRIVER_RULES` sheet and check **TABLE 5 – MASTER DATA COLUMN MAP**.
-If your MASTER DATA uses different columns, update TABLE 5 **and** change the constants at the top of the VBA module (`Alt+F11` → DriverScheduleMod):
+Compare against your actual MASTER DATA columns and update the `MD_COL_*` constants
+at the top of the VBA module (`Alt+F11` → DriverScheduleMod) if anything differs:
 
 ```vba
-Private Const MD_COL_SHIP_DATE  As Long = 2   ' B – Ship Date
 Private Const MD_COL_SOLD_TO    As Long = 3   ' C – Sold To
-Private Const MD_COL_AREA       As Long = 5   ' E – Area
+Private Const MD_COL_ADDRESS    As Long = 5   ' E – Full delivery address
+Private Const MD_COL_AREA       As Long = 6   ' F – Area
+Private Const MD_COL_SHIP_MTH   As Long = 7   ' G – Shipping Method
+Private Const MD_COL_PRODUCT    As Long = 8   ' H – Product
+Private Const MD_COL_QTY        As Long = 9   ' I – Quantity / Cases
+Private Const MD_COL_PALLETS    As Long = 10  ' J – Pallets (add this column)
 ' ... etc.
 ```
 
@@ -88,18 +108,23 @@ Private Const MD_COL_AREA       As Long = 5   ' E – Area
 
 ## Daily Usage
 
-1. Open the workbook
-2. Go to **DRIVER_SCHEDULE**
-3. Click cell **B2** — enter the delivery date (e.g. `4/7/2026`)
+1. Open **PSD Order Process Sheet.xlsm**
+2. Go to **Driver Schedule Sheet**
+3. Click cell **B1** — enter the delivery date (e.g. `4/7/2026`)
 4. Click **Generate Schedule**
 5. The macro will:
-   - Filter MASTER DATA for that date + matching day areas + Delivery method
+   - Filter MASTER DATA for that date + matching day areas + Delivery/Pick-up method
    - Skip superseded versions (keeps latest version per Request ID)
    - Assign vehicles (Truck / Van) per customer rules + pallet count
    - Calculate time priority (urgent first)
    - Sort: Vehicle → Time Priority → Area → Customer
-   - Write Truck Route and Van Route sections
-6. Print with **Ctrl + P** (pre-configured for landscape, Letter, fit-to-width)
+   - Write Section 1 (Truck) starting at **row 5**
+   - Write Section 2 (Van) starting at **row 74**
+   - Groups multiple products for the same customer+address as one numbered stop
+   - Puts one blank row between stops
+   - Pink background on Pick-up rows
+   - Time shown as: **Anytime** / **By HH:MM** / **Between HH:MM and HH:MM**
+6. Print with **Ctrl + P**
 
 ---
 

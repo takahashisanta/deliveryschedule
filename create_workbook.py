@@ -207,19 +207,21 @@ def build_driver_rules(ws):
         style_header_cell(ws.cell(row=t5_start+1, column=col), h, bg=CLR_HEADER_MED)
 
     col_map = [
-        ("Request ID",            "A",  "1"),
-        ("Ship Date",             "B",  "2"),
-        ("Sold To (Customer)",    "C",  "3"),
-        ("Ship To",               "D",  "4"),
-        ("Area",                  "E",  "5"),
-        ("Shipping Method",       "F",  "6"),
-        ("Product",               "G",  "7"),
-        ("Quantity / Pallets",    "H",  "8"),
-        ("Weight",                "I",  "9"),
-        ("Storage Location",      "J",  "10"),
-        ("Delivery Window Start", "K",  "11"),
-        ("Delivery Window End",   "L",  "12"),
-        ("Version / Status",      "T",  "20"),
+        ("Request ID",                         "A",  "1"),
+        ("Ship Date",                          "B",  "2"),
+        ("Sold To (Customer)",                 "C",  "3"),
+        ("Ship To (name)",                     "D",  "4"),
+        ("Full Delivery Address",              "E",  "5"),
+        ("Area",                               "F",  "6"),
+        ("Shipping Method (Delivery/Pick-up)", "G",  "7"),
+        ("Product / Item Description",         "H",  "8"),
+        ("Quantity / Cases (e.g. 70cs)",       "I",  "9"),
+        ("Pallets  ← ADD if missing",          "J",  "10"),
+        ("Weight",                             "K",  "11"),
+        ("Storage Location (Item Location)",   "L",  "12"),
+        ("Delivery Window Start",              "M",  "13"),
+        ("Delivery Window End",                "N",  "14"),
+        ("Version / Status",                   "T",  "20"),
     ]
     for i, (field, col_l, col_n) in enumerate(col_map):
         row = t5_start + 2 + i
