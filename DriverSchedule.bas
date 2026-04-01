@@ -26,26 +26,33 @@ Private Const RULES_SHEET       As String = "DRIVER_RULES"
 
 ' ── MASTER DATA column numbers (1 = col A) ────────────────────────────────────
 Private Const MD_COL_REQ_ID     As Long = 1   ' A  – Request ID
-Private Const MD_COL_SHIP_DATE  As Long = 2   ' B  – Ship Date
-Private Const MD_COL_SOLD_TO    As Long = 3   ' C  – Sold To (customer)
-Private Const MD_COL_SHIP_TO    As Long = 4   ' D  – Ship To name
-Private Const MD_COL_ADDRESS    As Long = 5   ' E  – Full delivery address
-Private Const MD_COL_AREA       As Long = 6   ' F  – Area
-Private Const MD_COL_SHIP_MTH   As Long = 7   ' G  – Shipping Method
-Private Const MD_COL_PRODUCT    As Long = 8   ' H  – Product / Item Description
-Private Const MD_COL_QTY        As Long = 9   ' I  – Quantity / Cases (e.g. "70cs")
-Private Const MD_COL_PALLETS    As Long = 10  ' J  – Pallets  ← ADD THIS COLUMN if missing
-Private Const MD_COL_WEIGHT     As Long = 11  ' K  – Weight
-Private Const MD_COL_STORAGE    As Long = 12  ' L  – Storage Location (Item Location)
-Private Const MD_COL_WIN_START  As Long = 13  ' M  – Delivery Window Start
-Private Const MD_COL_WIN_END    As Long = 14  ' N  – Delivery Window End
-Private Const MD_COL_VERSION    As Long = 20  ' T  – Version (highest = current)
+Private Const MD_COL_SHIP_DATE  As Long = 2   ' B  – Date (Ship Date)
+' C (3)  = Category   – not used
+' D (4)  = Rep        – not used
+Private Const MD_COL_SHIP_MTH   As Long = 5   ' E  – Shipping Method
+' F (6)  = Delivery Window label – not used (we use G/H for actual times)
+Private Const MD_COL_WIN_START  As Long = 7   ' G  – Start (window start time)
+Private Const MD_COL_WIN_END    As Long = 8   ' H  – Finish (window end time)
+' I (9)  = PO #       – not used
+Private Const MD_COL_SOLD_TO    As Long = 10  ' J  – Sold To Customer  (used for vehicle preference lookup)
+' K (11) = Sold To Address – not used for schedule
+Private Const MD_COL_SHIP_TO    As Long = 12  ' L  – Ship To Customer  (shown as "Delivery to" on schedule)
+Private Const MD_COL_ADDRESS    As Long = 13  ' M  – Ship To Address   (shown as dropoff address)
+Private Const MD_COL_AREA       As Long = 14  ' N  – Area
+Private Const MD_COL_PRODUCT    As Long = 15  ' O  – Product / Item Description
+Private Const MD_COL_QTY        As Long = 16  ' P  – Quantity / Cases
+' Q (17) = Weight     – not used
+' R (18) = Price/Unit – not used
+Private Const MD_COL_STORAGE    As Long = 19  ' S  – Storage Location
+Private Const MD_COL_VERSION    As Long = 20  ' T  – Version (highest number = current)
+' U (21) = Color Sort – not used
+Private Const MD_COL_PALLETS    As Long = 22  ' V  – Pallets  ← ADD col V to MASTER DATA
 '
-' ⚠  IMPORTANT – PALLETS COLUMN (MD_COL_PALLETS = 10 = col J):
-'    If MASTER DATA does not yet have a Pallets column, add one at col J (or any
-'    free column) and update MD_COL_PALLETS above to match.
-'    The macro uses this to decide Truck vs Van for flexible customers.
-'    Rule: total pallets for a stop >= FLEX_TRUCK_PALLETS → Truck, else Van.
+' ⚠  PALLETS (col V = 22):
+'    MASTER DATA currently ends at col U. Add a "Pallets" header at col V and
+'    enter the pallet count per order row. The macro sums pallets per stop
+'    to decide Truck vs Van for flexible customers.
+'    Rule: total pallets for a stop >= FLEX_TRUCK_PALLETS (4) → Truck, else Van.
 
 ' ── Driver Schedule Sheet – output row anchors ────────────────────────────────
 Private Const TRUCK_DATA_START  As Long = 5   ' first data row, section 1 (Truck)
