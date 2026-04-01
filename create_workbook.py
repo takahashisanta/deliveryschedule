@@ -222,13 +222,12 @@ def build_driver_rules(ws):
         ("Ship To Address   (shown on schedule)",   "M",  "13"),
         ("Area",                                    "N",  "14"),
         ("Product / Item Description",              "O",  "15"),
-        ("Quantity / Cases",                        "P",  "16"),
+        ("Quantity / Cases  (always numeric cases)","P",  "16"),
         ("Weight",                                  "Q",  "17 – not used"),
         ("Price / Unit",                            "R",  "18 – not used"),
         ("Storage Location",                        "S",  "19"),
         ("Version",                                 "T",  "20"),
         ("Color Sort",                              "U",  "21 – not used"),
-        ("Pallets  ← ADD THIS COLUMN at col V",     "V",  "22"),
     ]
     for i, (field, col_l, col_n) in enumerate(col_map):
         row = t5_start + 2 + i
@@ -237,8 +236,57 @@ def build_driver_rules(ws):
         style_data_cell(ws.cell(row=row, column=2), col_l, bg=bg, bold=True, align="center")
         style_data_cell(ws.cell(row=row, column=3), col_n, bg=bg, align="center")
 
+    # ── TABLE 6: Pallet Conversion ─────────────────────────────────────────────
+    t6_start = t5_start + 2 + len(col_map) + 2
+
+    ws.merge_cells(f"A{t6_start}:C{t6_start}")
+    c = ws.cell(row=t6_start, column=1)
+    c.value = "TABLE 6 – PALLET CONVERSION  (Product Code → Cases per Pallet)"
+    c.font  = Font(name="Calibri", bold=True, size=11, color=CLR_WHITE)
+    c.fill  = cell_fill("1F3864")
+    c.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[t6_start].height = 20
+
+    note_row = t6_start + 1
+    ws.merge_cells(f"A{note_row}:C{note_row}")
+    c = ws.cell(row=note_row, column=1)
+    c.value = (
+        "Fill in your product codes and how many cases fit on one pallet. "
+        "Macro calculates pallets = Quantity ÷ Cases/Pallet (rounded up to nearest 0.5). "
+        "Use partial product code for matching (e.g. 'M123' matches 'M123000-Frozen Striploin'). "
+        "The DEFAULT row is used when no product match is found."
+    )
+    c.font      = Font(name="Calibri", italic=True, size=9, color="595959")
+    c.fill      = cell_fill("FFF2CC")
+    c.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.row_dimensions[note_row].height = 44
+
+    for col, h in enumerate(["Product Code / Name (partial match OK)", "Cases per Pallet", "Notes"], 1):
+        style_header_cell(ws.cell(row=t6_start+2, column=col), h, bg=CLR_HEADER_MED)
+    ws.row_dimensions[t6_start+2].height = 20
+
+    # Example rows – user replaces these with their real products
+    example_products = [
+        ("DEFAULT",     "10", "Used when product is not listed above"),
+        ("",            "",   "← Add your product codes below this line"),
+    ]
+    for i, (prod, cpp, note) in enumerate(example_products):
+        row = t6_start + 3 + i
+        bold = (prod == "DEFAULT")
+        bg   = "FFE699" if bold else CLR_WHITE   # gold highlight for DEFAULT row
+        style_data_cell(ws.cell(row=row, column=1), prod, bg=bg, bold=bold)
+        style_data_cell(ws.cell(row=row, column=2), cpp,  bg=bg, bold=bold, align="center")
+        style_data_cell(ws.cell(row=row, column=3), note, bg=bg)
+
+    # Add 20 blank rows for the user to fill in products
+    for i in range(20):
+        row = t6_start + 3 + len(example_products) + i
+        bg = CLR_LIGHT_GREY if i % 2 == 0 else CLR_WHITE
+        for col in range(1, 4):
+            style_data_cell(ws.cell(row=row, column=col), bg=bg)
+
     # ── Column widths ──────────────────────────────────────────────────────────
-    ws.column_dimensions["A"].width = 28
+    ws.column_dimensions["A"].width = 40
     ws.column_dimensions["B"].width = 14
     ws.column_dimensions["C"].width = 14
     ws.column_dimensions["D"].width = 14

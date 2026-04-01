@@ -46,13 +46,11 @@ Private Const MD_COL_QTY        As Long = 16  ' P  – Quantity / Cases
 Private Const MD_COL_STORAGE    As Long = 19  ' S  – Storage Location
 Private Const MD_COL_VERSION    As Long = 20  ' T  – Version (highest number = current)
 ' U (21) = Color Sort – not used
-Private Const MD_COL_PALLETS    As Long = 22  ' V  – Pallets  ← ADD col V to MASTER DATA
 '
-' ⚠  PALLETS (col V = 22):
-'    MASTER DATA currently ends at col U. Add a "Pallets" header at col V and
-'    enter the pallet count per order row. The macro sums pallets per stop
-'    to decide Truck vs Van for flexible customers.
-'    Rule: total pallets for a stop >= FLEX_TRUCK_PALLETS (4) → Truck, else Van.
+' Pallets are CALCULATED from Quantity using the conversion table in DRIVER_RULES TABLE 6.
+' No extra column needed in MASTER DATA.
+' Default cases-per-pallet when a product is not found in the table:
+Private Const DEFAULT_CASES_PER_PALLET As Double = 10
 
 ' ── Driver Schedule Sheet – output row anchors ────────────────────────────────
 Private Const TRUCK_DATA_START  As Long = 5   ' first data row, section 1 (Truck)
@@ -207,8 +205,7 @@ NextVer:
             .StopType  = IIf(isPickup, "Pick-up", "Delivery")
             .Product   = Trim(wsMaster.Cells(i, MD_COL_PRODUCT).Value)
             .QtyCase   = wsMaster.Cells(i, MD_COL_QTY).Value
-            .Pallets   = IIf(IsNumeric(wsMaster.Cells(i, MD_COL_PALLETS).Value), _
-                              CDbl(wsMaster.Cells(i, MD_COL_PALLETS).Value), 0)
+            ' Pallets calculated later in AssignVehicles using conversion table
             .Storage   = Trim(wsMaster.Cells(i, MD_COL_STORAGE).Value)
             .WinStart  = wsMaster.Cells(i, MD_COL_WIN_START).Value
             .WinEnd    = wsMaster.Cells(i, MD_COL_WIN_END).Value
@@ -366,15 +363,29 @@ End Type
 
 '================================================================================
 ' AssignVehicles
-' Calculates total pallets per StopKey, then assigns Truck/Van to every row.
+' 1. Calculates pallets per row via the conversion table (Qty ÷ Cases/Pallet).
+' 2. Sums pallets per StopKey (same customer+address = one stop).
+' 3. Assigns Truck or Van to every row using customer preference + pallet total.
 '================================================================================
 Private Sub AssignVehicles(rows() As DelivRow, rowCount As Long, _
                             wsRules As Worksheet)
-    ' Sum pallets per StopKey
+    ' Step 1 – calculate pallets for every row
+    Dim i As Long
+    For i = 0 To rowCount - 1
+        Dim qty As Double
+        qty = ParseQty(rows(i).QtyCase)
+
+        Dim cpp As Double
+        cpp = GetCasesPerPallet(wsRules, rows(i).Product)
+
+        ' Round up to nearest 0.5 pallet
+        rows(i).Pallets = RoundUpHalf(qty / cpp)
+    Next i
+
+    ' Step 2 – sum pallets per stop
     Dim stopPallets As Object
     Set stopPallets = CreateObject("Scripting.Dictionary")
 
-    Dim i As Long
     For i = 0 To rowCount - 1
         Dim sk As String: sk = rows(i).StopKey
         If stopPallets.Exists(sk) Then
@@ -384,7 +395,7 @@ Private Sub AssignVehicles(rows() As DelivRow, rowCount As Long, _
         End If
     Next i
 
-    ' Assign vehicle to each row
+    ' Step 3 – assign vehicle
     For i = 0 To rowCount - 1
         Dim totalPlt As Double
         totalPlt = stopPallets(rows(i).StopKey)
@@ -401,11 +412,101 @@ Private Sub AssignVehicles(rows() As DelivRow, rowCount As Long, _
                 rows(i).Vehicle = "Truck"
             Case "van"
                 rows(i).Vehicle = "Van"
-            Case Else   ' Flexible
+            Case Else   ' Flexible: pallet count decides
                 rows(i).Vehicle = IIf(totalPlt >= FLEX_TRUCK_PALLETS, "Truck", "Van")
         End Select
     Next i
 End Sub
+
+
+'================================================================================
+' ParseQty  –  extracts the leading number from strings like "70cs", "4pc", "15"
+'================================================================================
+Private Function ParseQty(qtyVal As Variant) As Double
+    If IsEmpty(qtyVal) Then ParseQty = 0: Exit Function
+    If IsNumeric(qtyVal) Then ParseQty = CDbl(qtyVal): Exit Function
+
+    Dim s As String: s = Trim(CStr(qtyVal))
+    Dim numStr As String: numStr = ""
+    Dim hasDot As Boolean: hasDot = False
+    Dim c As Integer
+    For c = 1 To Len(s)
+        Dim ch As String: ch = Mid(s, c, 1)
+        If ch >= "0" And ch <= "9" Then
+            numStr = numStr & ch
+        ElseIf ch = "." And Not hasDot Then
+            numStr = numStr & ch
+            hasDot = True
+        ElseIf numStr <> "" Then
+            Exit For   ' stop at first non-numeric char after digits
+        End If
+    Next c
+    ParseQty = IIf(numStr <> "" And numStr <> ".", CDbl(numStr), 0)
+End Function
+
+
+'================================================================================
+' GetCasesPerPallet  –  looks up TABLE 6 in DRIVER_RULES for a product code.
+' Returns the "Cases per Pallet" value, or DEFAULT_CASES_PER_PALLET if not found.
+' Matching is case-insensitive and partial (product entry can be a prefix/substring).
+'================================================================================
+Private Function GetCasesPerPallet(wsRules As Worksheet, productName As String) As Double
+    GetCasesPerPallet = DEFAULT_CASES_PER_PALLET   ' start with default
+
+    If wsRules Is Nothing Then Exit Function
+    If Trim(productName) = "" Then Exit Function
+
+    ' Locate TABLE 6 header row
+    Dim hdrRow As Long: hdrRow = 0
+    Dim r As Long
+    For r = 40 To 300
+        If InStr(1, CStr(wsRules.Cells(r, 1).Value), "TABLE 6", vbTextCompare) > 0 Then
+            hdrRow = r
+            Exit For
+        End If
+    Next r
+    If hdrRow = 0 Then Exit Function
+
+    ' Data starts 3 rows below the TABLE 6 title (title + note + column headers)
+    Dim dataStart As Long: dataStart = hdrRow + 3
+    Dim defaultCPP As Double: defaultCPP = DEFAULT_CASES_PER_PALLET
+    Dim bestMatch As Double: bestMatch = 0   ' 0 = no match yet
+
+    For r = dataStart To dataStart + 200
+        Dim entry As String: entry = Trim(CStr(wsRules.Cells(r, 1).Value))
+        If entry = "" Then GoTo NextEntry
+
+        Dim cppVal As Variant: cppVal = wsRules.Cells(r, 2).Value
+        If Not IsNumeric(cppVal) Or CDbl(cppVal) <= 0 Then GoTo NextEntry
+
+        ' "DEFAULT" row – save as fallback
+        If StrComp(entry, "DEFAULT", vbTextCompare) = 0 Then
+            defaultCPP = CDbl(cppVal)
+            GoTo NextEntry
+        End If
+
+        ' Partial match: product name contains the entry string
+        If InStr(1, productName, entry, vbTextCompare) > 0 Then
+            ' Prefer the longest (most specific) match
+            If Len(entry) > bestMatch Then
+                bestMatch = Len(entry)
+                GetCasesPerPallet = CDbl(cppVal)
+            End If
+        End If
+NextEntry:
+    Next r
+
+    ' If no product match was found, use the DEFAULT row value
+    If bestMatch = 0 Then GetCasesPerPallet = defaultCPP
+End Function
+
+
+'================================================================================
+' RoundUpHalf  –  rounds up to the nearest 0.5  (e.g. 1.1 → 1.5,  1.6 → 2.0)
+'================================================================================
+Private Function RoundUpHalf(x As Double) As Double
+    RoundUpHalf = Application.WorksheetFunction.Ceiling(x, 0.5)
+End Function
 
 
 '================================================================================
@@ -462,7 +563,14 @@ Private Sub WriteDelivRow(ws As Worksheet, outRow As Long, r As DelivRow, _
     ws.Cells(outRow, OUT_I_ITEM).Value    = r.Product
     ws.Cells(outRow, OUT_J_QTY).Value     = r.QtyCase
     If r.Pallets > 0 Then
-        ws.Cells(outRow, OUT_K_PALLETS).Value = r.Pallets & " PLT"
+        ' Display as whole number if no fractional part, e.g. "2 PLT" or "1.5 PLT"
+        Dim pltStr As String
+        If r.Pallets = Int(r.Pallets) Then
+            pltStr = CStr(CLng(r.Pallets)) & " PLT"
+        Else
+            pltStr = CStr(r.Pallets) & " PLT"
+        End If
+        ws.Cells(outRow, OUT_K_PALLETS).Value = pltStr
     End If
     ws.Cells(outRow, OUT_L_STORAGE).Value = r.Storage
     ' col M (13) = Info for Driver – left blank
